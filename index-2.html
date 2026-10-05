@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ja">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AstroPath</title>
+<style>
+body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#08101d;color:#edf4ff}#app{max-width:1100px;margin:auto;padding:20px}h1{font-size:28px}.sub{color:#9aaac0}.grid{display:grid;grid-template-columns:1.15fr .85fr;gap:16px}.card{background:#111c2b;border:1px solid #25354a;border-radius:18px;padding:18px}.hero{text-align:center;min-height:300px}.moon{font-size:76px}.big{font-size:30px;font-weight:750}.row{display:flex;gap:10px;flex-wrap:wrap}.stat{flex:1;min-width:120px;padding:12px;border:1px solid #25354a;border-radius:12px}.label{font-size:12px;color:#9aaac0}.value{font-weight:650;margin-top:3px}.btn{border:0;border-radius:12px;padding:12px 15px;background:#69a7ff;color:white;font-weight:700;cursor:pointer}.secondary{background:transparent;border:1px solid #25354a}.notice{padding:10px 12px;border-radius:10px;background:#172942;font-size:13px;margin-top:10px}.compass{font-size:42px;font-weight:800}.photos{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.photo{border:1px solid #25354a;border-radius:12px;overflow:hidden}.photo img{display:block;width:100%;aspect-ratio:1;object-fit:cover}.photo div{padding:8px;font-size:11px;color:#9aaac0}@media(max-width:800px){.grid{grid-template-columns:1fr}.photos{grid-template-columns:repeat(2,1fr)}}
+</style></head>
+<body><div id="app"><h1>🌌 AstroPath</h1><div class="sub">位置・方角・日時を記録して、天体撮影をサポート</div>
+<div class="grid"><section class="card hero"><div class="moon">☾</div><div class="big">天体撮影モード</div><p class="sub">GPS・方位・撮影日時を写真と一緒に保存</p><div class="row"><button class="btn" id="gpsBtn">📍 GPSを取得</button><button class="btn secondary" id="cameraBtn">📷 カメラを起動</button></div><div class="notice" id="status">まずGPSを取得してください。</div></section>
+<section class="card"><h3>📍 撮影地点・方向</h3><div class="row"><div class="stat"><div class="label">緯度</div><div class="value" id="lat">--</div></div><div class="stat"><div class="label">経度</div><div class="value" id="lon">--</div></div></div><div class="row"><div class="stat"><div class="label">方位角</div><div class="value" id="heading">--</div></div><div class="stat"><div class="label">撮影日時</div><div class="value" id="date">--</div></div></div><div style="text-align:center;margin:20px"><div class="label">カメラの向き</div><div class="compass" id="compass">--°</div><div id="direction">方向待機中</div></div><button class="btn" id="timerBtn" disabled>⏱ 5分後に撮影</button><div class="notice" id="timerStatus">GPS取得後にタイマーを開始できます。</div></section></div>
+<section class="card" style="margin-top:16px"><h3>⭐ 星座表示</h3><div class="row"><div class="stat"><div class="label">現在の代表的な星座</div><div class="value" id="constellation">現在地・時刻を取得すると表示</div></div><div class="stat"><div class="label">観測方向</div><div class="value" id="skyDir">--</div></div></div><div class="notice">試作版では、撮影地点と時刻を基に星空表示へ拡張できる構成です。</div></section>
+<section class="card" style="margin-top:16px"><h3>🖼 撮影画像一覧</h3><div class="photos" id="photos"></div><div class="notice" id="empty">まだ写真がありません。カメラ撮影または5分タイマーを使ってください。</div></section>
+<div class="sub" style="font-size:12px;margin-top:15px">※ GPS・カメラ・方位センサーはブラウザの許可が必要です。写真・位置情報などの保存データは端末ごとに分かれます。</div></div>
+<script>
+const $=id=>document.getElementById(id);let position=null,heading=null,timer=null,photos=JSON.parse(localStorage.getItem('astroPhotos')||'[]');
+function now(){return new Date().toLocaleString('ja-JP',{hour12:false})}function dir(h){if(h==null)return'方向待機中';return['北','北東','東','南東','南','南西','西','北西'][Math.round(h/45)%8]}
+function save(){localStorage.setItem('astroPhotos',JSON.stringify(photos));renderPhotos()}
+function renderPhotos(){let p=$('photos');p.innerHTML='';$('empty').style.display=photos.length?'none':'block';photos.slice().reverse().forEach(x=>{let e=document.createElement('div');e.className='photo';e.innerHTML='<img src="'+x.data+'"><div>'+x.date+'<br>📍 '+x.lat.toFixed(5)+', '+x.lon.toFixed(5)+'<br>🧭 '+(x.heading==null?'--':Math.round(x.heading)+'°')+'</div>';p.appendChild(e)})}
+async function requestOrientationPermission(){
+ try{
+  if(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function'){
+   const result=await DeviceOrientationEvent.requestPermission();
+   if(result!=='granted') $('status').textContent='方位センサーの許可が必要です。';
+  }
+ }catch(e){$('status').textContent='方位センサーを利用できませんでした。';}
+}
+function updateHeading(e){
+ let h=(typeof e.webkitCompassHeading==='number' && e.webkitCompassHeading>=0)
+   ? e.webkitCompassHeading
+   : (typeof e.alpha==='number' ? (360-e.alpha)%360 : null);
+ if(h!=null){
+  heading=h;
+  $('heading').textContent=Math.round(h)+'°';
+  $('compass').textContent=Math.round(h)+'°';
+  $('direction').textContent=dir(h);
+  $('skyDir').textContent=dir(h);
+ }
+}
+$('gpsBtn').onclick=async()=>{
+ await requestOrientationPermission();
+ if(navigator.geolocation) navigator.geolocation.getCurrentPosition(p=>{
+  position=p.coords;
+  $('lat').textContent=p.coords.latitude.toFixed(6);
+  $('lon').textContent=p.coords.longitude.toFixed(6);
+  $('date').textContent=now();
+  $('timerBtn').disabled=false;
+  $('status').textContent='GPS取得完了。スマホを動かすと方位が更新されます。';
+ },e=>$('status').textContent='GPSを取得できませんでした：'+e.message,{enableHighAccuracy:true,timeout:10000});
+ else alert('このブラウザはGPSに対応していません。');
+};
+window.addEventListener('deviceorientationabsolute',updateHeading);
+window.addEventListener('deviceorientation',updateHeading);
+function take(){let input=document.createElement('input');input.type='file';input.accept='image/*';input.capture='environment';input.onchange=()=>{let f=input.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{photos.push({data:r.result,date:now(),lat:position?.latitude||0,lon:position?.longitude||0,heading});save();$('status').textContent='写真を保存しました。位置・日時・方角も記録されています。'};r.readAsDataURL(f)};input.click()}
+$('cameraBtn').onclick=async()=>{await requestOrientationPermission();take()};$('timerBtn').onclick=()=>{if(timer){clearTimeout(timer);timer=null;$('timerBtn').textContent='⏱ 5分後に撮影';$('timerStatus').textContent='タイマーをキャンセルしました。';return}let end=Date.now()+300000;$('timerBtn').textContent='タイマー停止';function tick(){let s=Math.max(0,Math.ceil((end-Date.now())/1000));$('timerStatus').textContent='撮影まで '+Math.floor(s/60)+'分 '+s%60+'秒';if(s>0)timer=setTimeout(tick,1000);else{timer=null;$('timerBtn').textContent='⏱ 5分後に撮影';$('timerStatus').textContent='撮影時間になりました。カメラを開きます。';take()}}tick()};
+$('constellation').textContent='オリオン座・おおぐま座など（表示ロジックを追加可能）';renderPhotos();
+</script></body></html>
