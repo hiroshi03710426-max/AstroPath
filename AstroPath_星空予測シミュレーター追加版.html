@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="ja">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AstroPath</title>
+<style>
+body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#08101d;color:#edf4ff}#app{max-width:1100px;margin:auto;padding:20px}h1{font-size:28px}.sub{color:#9aaac0}.grid{display:grid;grid-template-columns:1.15fr .85fr;gap:16px}.card{background:#111c2b;border:1px solid #25354a;border-radius:18px;padding:18px}.hero{text-align:center;min-height:300px}.moon{font-size:76px}.big{font-size:30px;font-weight:750}.row{display:flex;gap:10px;flex-wrap:wrap}.stat{flex:1;min-width:120px;padding:12px;border:1px solid #25354a;border-radius:12px}.label{font-size:12px;color:#9aaac0}.value{font-weight:650;margin-top:3px}.btn{border:0;border-radius:12px;padding:12px 15px;background:#69a7ff;color:white;font-weight:700}.secondary{background:transparent;border:1px solid #25354a}.notice{padding:10px 12px;border-radius:10px;background:#172942;font-size:13px;margin-top:10px}.compass{font-size:42px;font-weight:800}.fov-input{width:100%;box-sizing:border-box;border:1px solid #38506b;background:#0b1625;color:#edf4ff;border-radius:9px;padding:10px;font-size:16px}.photos{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.photo{border:1px solid #25354a;border-radius:12px;overflow:hidden}.photo img{display:block;width:100%;aspect-ratio:1;object-fit:cover}.photo div{padding:8px;font-size:11px;color:#9aaac0}@media(max-width:800px){.grid{grid-template-columns:1fr}.photos{grid-template-columns:repeat(2,1fr)}}
+
+.sky-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.sky-controls label{display:block;font-size:12px;color:#9aaac0;margin-bottom:5px}.sky-controls input{width:100%;box-sizing:border-box;border:1px solid #38506b;background:#0b1625;color:#edf4ff;border-radius:9px;padding:10px;font-size:16px}.sky-view{position:relative;max-width:720px;margin:12px auto;background:linear-gradient(#061326,#122a45);aspect-ratio:4/3;overflow:hidden;border:1px solid #38506b;border-radius:14px}.sky-view video,.sky-view canvas{position:absolute;inset:0;width:100%;height:100%}.sky-view video{object-fit:cover}.sky-view canvas{z-index:2}.sky-list{line-height:1.7;font-size:14px}.hint{font-size:12px;color:#aebdd2}@media(max-width:600px){.sky-controls{grid-template-columns:1fr}}
+</style></head>
+<body><div id="app"><h1>🌌 AstroPath</h1><div class="sub">位置・方角・日時を記録して、天体撮影をサポート</div>
+<div class="grid"><section class="card hero"><div class="moon">☾</div><div class="big">天体撮影モード</div><p class="sub">GPS・方位・撮影日時を写真と一緒に保存</p><div class="row"><button class="btn" id="gpsBtn">📍 GPSを取得</button><button class="btn" id="orientationBtn">🧭 方位センサーを有効にする</button><button class="btn secondary" id="cameraBtn">📷 カメラを起動</button></div><div class="notice" id="status">まずGPSを取得してください。</div></section>
+<section class="card"><h3>📍 撮影地点・方向</h3><div class="row"><div class="stat"><div class="label">緯度</div><div class="value" id="lat">--</div></div><div class="stat"><div class="label">経度</div><div class="value" id="lon">--</div></div></div><div class="row"><div class="stat"><div class="label">方位角</div><div class="value" id="heading">--</div></div><div class="stat"><div class="label">高度角（推定）</div><div class="value" id="altitude">--</div></div><div class="row"><div class="stat"><div class="label">撮影日時</div><div class="value" id="date">--</div></div></div><div style="text-align:center;margin:20px"><div class="label">カメラの向き</div><div class="compass" id="compass">--°</div><div id="direction">方向待機中</div><p class="sub" style="font-size:12px">高度角は背面カメラの向きを端末姿勢から推定します。水平で0°、真上で90°。実測前に校正してください。</p></div><button class="btn" id="timerBtn" disabled>⏱ 5分後に撮影</button><div class="notice" id="timerStatus">GPS取得後にタイマーを開始できます。</div></section></div>
+<section class="card" style="margin-top:16px"><h3>🔭 カメラに写る空の範囲（試作）</h3>
+<p class="sub">iPhone 14 Proの1×カメラを想定。画角は仮設定なので、実際の写真で校正してください。</p>
+<div class="row"><div class="stat"><label class="label" for="fovH">水平画角（°）</label><input class="fov-input" type="number" id="fovH" min="1" max="179" step="0.1" value="74"></div><div class="stat"><label class="label" for="fovV">垂直画角（°）</label><input class="fov-input" type="number" id="fovV" min="1" max="179" step="0.1" value="53"></div></div>
+<div class="row"><div class="stat"><div class="label">撮影中心の方位角（暫定）</div><div class="value" id="centerAz">--</div></div><div class="stat"><div class="label">撮影中心の高度角（推定）</div><div class="value" id="centerAlt">--</div></div></div>
+<div class="row"><div class="stat"><div class="label">撮影範囲（画角）</div><div class="value" id="fovResult">水平 74° × 垂直 53°</div></div><div class="stat"><div class="label">中心高度角±垂直半画角（参考）</div><div class="value" id="altRange">--</div></div></div>
+<div class="notice">※画角の初期値は説明用の仮値です。方位角は端末センサーの値を使用しており、カメラ光軸との一致は未検証です。高度角の範囲は中心付近の簡易目安で、天球上の厳密な境界ではありません。端末の回転・レンズ・画像の縦横比によっても撮影範囲は変わります。</div></section>
+<section class="card" style="margin-top:16px"><h3>⭐ 星座表示</h3><div class="row"><div class="stat"><div class="label">現在の代表的な星座</div><div class="value" id="constellation">オリオン座・おおぐま座など（表示ロジックを追加可能）</div></div><div class="stat"><div class="label">観測方向</div><div class="value" id="skyDir">--</div></div></div></section>
+
+<section class="card" style="margin-top:16px" id="starSection">
+<h3>✨ 星の位置予測・時間シミュレーター（試作）</h3>
+<p class="sub">GPS・日時・方位角・高度角・画角から、明るい恒星が撮影範囲に入るかを計算します。カメラの画像認識ではありません。</p>
+<div class="sky-controls">
+<div><label for="simOffset">時間をずらす：<strong id="simOffsetLabel">現在（±0時間）</strong></label><input type="range" id="simOffset" min="-12" max="12" step="0.5" value="0"></div>
+<div><label for="manualMode">撮影方向</label><select id="manualMode" class="fov-input"><option value="sensor">センサーの値を使う</option><option value="manual">手動で指定する</option></select></div>
+<div><label for="manualAz">方位角（°）</label><input type="number" id="manualAz" min="0" max="360" step="1" value="180"></div>
+<div><label for="manualAlt">高度角（°）</label><input type="number" id="manualAlt" min="-90" max="90" step="1" value="45"></div>
+</div>
+<div class="row" style="margin-top:12px"><button class="btn" id="liveCameraBtn">📹 カメラ映像を表示</button><button class="btn secondary" id="stopCameraBtn">映像を停止</button><button class="btn secondary" id="simResetBtn">時間を現在に戻す</button></div>
+<div class="sky-view" id="skyView"><video id="skyVideo" autoplay muted playsinline></video><canvas id="skyCanvas" aria-label="予測された星空"></canvas></div>
+<div class="notice" id="skyStatus">GPSと方位センサーを有効にすると、現在の方向の星を表示します。手動指定でも試せます。</div>
+<div class="sky-list" id="visibleStars" aria-live="polite"></div>
+<p class="hint">※明るい恒星の簡易カタログのみ表示します。星の実際の視認性、遮蔽物、天候、太陽光、地平線付近の大気差は判定しません。センサーの方位はカメラ光軸と一致するとは限らず、端末の回転・画角・映像トリミングによって表示がずれます。星を正確に重ねるには別途校正が必要です。シミュレーション時は撮影方向を固定し、星の位置だけを時間変化させます。</p>
+</section>
+<section class="card" style="margin-top:16px"><h3>🖼 撮影画像一覧</h3><div class="photos" id="photos"></div><div class="notice" id="empty">まだ写真がありません。</div></section></div>
+<script>
+const $=id=>document.getElementById(id);let position=null,heading=null,altitude=null,timer=null,photos=JSON.parse(localStorage.getItem('astroPhotos')||'[]');
+function now(){return new Date().toLocaleString('ja-JP',{hour12:false})}
+function dir(h){if(h==null)return'方向待機中';return['北','北東','東','南東','南','南西','西','北西'][Math.round(h/45)%8]}
+function getFov(){
+ const h=Number($('fovH').value),v=Number($('fovV').value);
+ return Number.isFinite(h)&&Number.isFinite(v)&&h>0&&h<180&&v>0&&v<180?{h,v}:null;
+}
+function updateFov(){
+ const f=getFov();
+ $('fovResult').textContent=f?'水平 '+f.h+'° × 垂直 '+f.v+'°':'画角は1〜179°で入力';
+ $('centerAz').textContent=heading==null?'--':heading.toFixed(1)+'°';
+ $('centerAlt').textContent=altitude==null?'--':altitude.toFixed(1)+'°';
+ $('altRange').textContent=f&&altitude!=null?(altitude-f.v/2).toFixed(1)+'° 〜 '+(altitude+f.v/2).toFixed(1)+'°':'--';
+}
+$('fovH').addEventListener('input',updateFov);
+$('fovV').addEventListener('input',updateFov);
+function save(){localStorage.setItem('astroPhotos',JSON.stringify(photos));renderPhotos()}
+function renderPhotos(){let p=$('photos');p.innerHTML='';$('empty').style.display=photos.length?'none':'block';photos.slice().reverse().forEach(x=>{let e=document.createElement('div');e.className='photo';e.innerHTML='<img src="'+x.data+'"><div>'+x.date+'<br>📍 '+(x.lat==null?'--':x.lat.toFixed(5))+', '+(x.lon==null?'--':x.lon.toFixed(5))+'<br>🧭 '+(x.heading==null?'--':Math.round(x.heading)+'°')+'<br>📐 高度角 '+(x.altitude==null?'--':Math.round(x.altitude)+'°')+(x.fovH!=null&&x.fovV!=null?'<br>🔭 画角 '+x.fovH+'° × '+x.fovV+'°':'')+'</div>';p.appendChild(e)})}
+async function enableOrientation(){
+ try{
+  let granted=true;
+  if(typeof DeviceOrientationEvent==='undefined'){
+   $('status').textContent='この端末では方位センサーを利用できません。';
+   return;
+  }
+  if(typeof DeviceOrientationEvent.requestPermission==='function'){
+   const result=await DeviceOrientationEvent.requestPermission();
+   granted=(result==='granted');
+  }
+  if(!granted){
+   $('status').textContent='方位センサーが許可されませんでした。';
+   return;
+  }
+  window.addEventListener('deviceorientationabsolute',updateHeading,true);
+  window.addEventListener('deviceorientation',updateHeading,true);
+  $('status').textContent='方位センサー：ON。スマホをゆっくり回してください。';
+  $('orientationBtn').textContent='🧭 方位センサー：ON';
+ }catch(e){
+  $('status').textContent='方位センサーを有効にできませんでした。';
+ }
+}
+function updateHeading(e){
+ // 背面カメラの光軸は端末画面の法線の反対方向（-Z）。
+ // DeviceOrientation beta/gamma から光軸の鉛直成分を求める。
+ if(typeof e.beta==='number' && Number.isFinite(e.beta) &&
+    typeof e.gamma==='number' && Number.isFinite(e.gamma)){
+  const b=e.beta*Math.PI/180;
+  const g=e.gamma*Math.PI/180;
+  const vertical=Math.max(-1,Math.min(1,-Math.cos(b)*Math.cos(g)));
+  altitude=Math.asin(vertical)*180/Math.PI;
+  $('altitude').textContent=altitude.toFixed(1)+'°';
+  updateFov();
+ }
+ let h=null;
+ if(typeof e.webkitCompassHeading==='number' && isFinite(e.webkitCompassHeading)){
+  h=e.webkitCompassHeading;
+ }else if(typeof e.alpha==='number' && isFinite(e.alpha)){
+  h=(360-e.alpha+360)%360;
+ }
+ if(h!==null){
+  heading=h;
+  $('heading').textContent=Math.round(h)+'°';
+  $('compass').textContent=Math.round(h)+'°';
+  $('direction').textContent=dir(h);
+  $('skyDir').textContent=dir(h);
+  updateFov();
+  $('status').textContent='方位角を取得中：'+Math.round(h)+'°（'+dir(h)+'）';
+ }
+}
+$('orientationBtn').onclick=enableOrientation;
+
+$('gpsBtn').onclick=()=>{if(navigator.geolocation)navigator.geolocation.getCurrentPosition(p=>{position=p.coords;$('lat').textContent=p.coords.latitude.toFixed(6);$('lon').textContent=p.coords.longitude.toFixed(6);$('date').textContent=now();$('timerBtn').disabled=false;$('status').textContent=heading==null?'GPS取得完了。スマホを動かすと方位が更新されます。':'GPS・方位センサー取得完了。'},e=>$('status').textContent='GPSを取得できませんでした：'+e.message,{enableHighAccuracy:true,timeout:10000})};
+function take(){let input=document.createElement('input');input.type='file';input.accept='image/*';input.capture='environment';input.onchange=()=>{let f=input.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{const f=getFov();photos.push({data:r.result,date:now(),lat:position?.latitude??null,lon:position?.longitude??null,heading,altitude,fovH:f?.h??null,fovV:f?.v??null});save();$('status').textContent='写真を保存しました。'};r.readAsDataURL(f)};input.click()}
+$('cameraBtn').onclick=()=>{take()};
+$('timerBtn').onclick=()=>{if(timer){clearTimeout(timer);timer=null;$('timerBtn').textContent='⏱ 5分後に撮影';return}let end=Date.now()+300000;$('timerBtn').textContent='タイマー停止';function tick(){let s=Math.max(0,Math.ceil((end-Date.now())/1000));$('timerStatus').textContent='撮影まで '+Math.floor(s/60)+'分 '+s%60+'秒';if(s>0)timer=setTimeout(tick,1000);else{timer=null;$('timerBtn').textContent='⏱ 5分後に撮影';take()}}tick()};
+renderPhotos();updateFov();
+
+// ---- Star predictor: approximate J2000 catalog and sidereal-time calculation ----
+// RA is hours, Dec is degrees. Proper motion, precession, nutation and refraction omitted.
+const STAR_CATALOG=[
+ ['シリウス',6.7525,-16.7161,-1.46],['カノープス',6.3992,-52.6957,-0.74],
+ ['アークトゥルス',14.2610,19.1824,-0.05],['ベガ',18.6156,38.7837,0.03],
+ ['カペラ',5.2782,45.9980,0.08],['リゲル',5.2423,-8.2016,0.13],
+ ['プロキオン',7.6550,5.2250,0.34],['ベテルギウス',5.9195,7.4071,0.42],
+ ['アケルナル',1.6286,-57.2368,0.46],['ハダル',14.0637,-60.3730,0.61],
+ ['アルタイル',19.8464,8.8683,0.77],['アルデバラン',4.5987,16.5093,0.85],
+ ['スピカ',13.4199,-11.1614,0.98],['アンタレス',16.4901,-26.4320,1.06],
+ ['ポルックス',7.7553,28.0262,1.14],['フォーマルハウト',22.9608,-29.6222,1.16],
+ ['デネブ',20.6905,45.2803,1.25],['レグルス',10.1395,11.9672,1.35],
+ ['カストル',7.5766,31.8883,1.58],['ギェナー',12.5194,-57.1132,1.63],
+ ['ベラトリックス',5.4189,6.3497,1.64],['エルナト',5.4382,28.6074,1.65],
+ ['ミラク',1.1622,35.6206,2.06],['アルフェラッツ',0.1398,29.0904,2.06],
+ ['ポラリス（北極星）',2.5303,89.2641,1.98],['アルゴル',3.1361,40.9556,2.12],
+ ['ミザール',13.3987,54.9254,2.23],['アルヘナ',6.6285,16.3993,1.93],
+ ['サイフ',5.7959,-9.6696,2.07],['アルニタク',5.6793,-1.9426,1.74],
+ ['アルニラム',5.6036,-1.2019,1.69],['ミンタカ',5.5334,-0.2991,2.23],
+ ['デネボラ',11.8177,14.5721,2.14],['アルビレオ',19.5120,27.9597,3.05],
+ ['シャウラ',17.5601,-37.1038,1.62],['サルガス',17.6219,-42.9978,1.86],
+ ['ドゥベ',11.0621,61.7510,1.79],['メラク',11.0307,56.3824,2.37],
+ ['フェクダ',11.8972,53.6948,2.44],['アリオト',12.9005,55.9598,1.77],
+ ['アルカイド',13.7923,49.3133,1.86],['シェアト',23.0629,28.0828,2.42],
+ ['マルカブ',23.0793,15.2053,2.49],['ハマル',2.1196,23.4624,2.00]
+];
+const rad=Math.PI/180;
+function mod360(x){return ((x%360)+360)%360}
+function starAzAlt(ra,dec,lat,lon,date){
+ const jd=date.getTime()/86400000+2440587.5;
+ const t=(jd-2451545)/36525;
+ const gmst=280.46061837+360.98564736629*(jd-2451545)+0.000387933*t*t-t*t*t/38710000;
+ const ha=mod360(gmst+lon-ra*15)*rad;
+ const phi=lat*rad,delta=dec*rad;
+ const east=-Math.cos(delta)*Math.sin(ha);
+ const north=Math.sin(delta)*Math.cos(phi)-Math.cos(delta)*Math.cos(ha)*Math.sin(phi);
+ const up=Math.sin(delta)*Math.sin(phi)+Math.cos(delta)*Math.cos(ha)*Math.cos(phi);
+ return {az:mod360(Math.atan2(east,north)/rad),alt:Math.asin(Math.max(-1,Math.min(1,up)))/rad};
+}
+function projection(az,alt,centerAz,centerAlt,hfov,vfov){
+ const a=az*rad,b=alt*rad,c=centerAz*rad,d=centerAlt*rad;
+ const vec=[Math.cos(b)*Math.sin(a),Math.cos(b)*Math.cos(a),Math.sin(b)];
+ const forward=[Math.cos(d)*Math.sin(c),Math.cos(d)*Math.cos(c),Math.sin(d)];
+ const right=[Math.cos(c),-Math.sin(c),0];
+ const top=[-Math.sin(d)*Math.sin(c),-Math.sin(d)*Math.cos(c),Math.cos(d)];
+ const dot=(x,y)=>x[0]*y[0]+x[1]*y[1]+x[2]*y[2];
+ const z=dot(vec,forward);if(z<=0)return null;
+ const x=dot(vec,right)/z/Math.tan(hfov*rad/2);
+ const y=dot(vec,top)/z/Math.tan(vfov*rad/2);
+ return Math.abs(x)<=1&&Math.abs(y)<=1?{x,y}:null;
+}
+let skyStream=null;
+const skyCanvas=$('skyCanvas'),skyContext=skyCanvas.getContext('2d');
+function drawSky(){
+ const rect=$('skyView').getBoundingClientRect();if(!rect.width)return;
+ const dpr=Math.min(window.devicePixelRatio||1,2),w=rect.width,h=rect.height;
+ skyCanvas.width=Math.round(w*dpr);skyCanvas.height=Math.round(h*dpr);
+ skyContext.setTransform(dpr,0,0,dpr,0,0);skyContext.clearRect(0,0,w,h);
+ if(!skyStream){const gradient=skyContext.createLinearGradient(0,0,0,h);gradient.addColorStop(0,'#061326');gradient.addColorStop(1,'#122a45');skyContext.fillStyle=gradient;skyContext.fillRect(0,0,w,h)}
+ const f=getFov(),manual=$('manualMode').value==='manual';
+ const az=manual?Number($('manualAz').value):heading;
+ const alt=manual?Number($('manualAlt').value):altitude;
+ const lat=position?.latitude,lon=position?.longitude;
+ const offset=Number($('simOffset').value);
+ $('simOffsetLabel').textContent=offset===0?'現在（±0時間）':(offset>0?'+':'')+offset+'時間';
+ const when=new Date(Date.now()+offset*3600000);
+ skyContext.fillStyle='#fff';skyContext.font='12px system-ui';skyContext.fillText(when.toLocaleString('ja-JP',{hour12:false}),10,20);
+ if(!f||!Number.isFinite(az)||!Number.isFinite(alt)||Math.abs(alt)>90||lat==null||lon==null){
+  $('visibleStars').textContent='GPSを取得し、方位センサーを有効にしてください。センサーが使えない場合は「手動で指定する」を選べます。';
+  skyContext.fillStyle='#f3f7ff';skyContext.fillText('位置・方向・画角を設定してください',10,h/2);return;
+ }
+ const visible=[];
+ for(const [name,ra,dec,mag] of STAR_CATALOG){
+  const loc=starAzAlt(ra,dec,lat,lon,when);
+  if(loc.alt<0)continue;
+  const p=projection(loc.az,loc.alt,mod360(az),alt,f.h,f.v);
+  if(p)visible.push({name,mag,...loc,...p});
+ }
+ visible.sort((a,b)=>a.mag-b.mag);
+ for(const star of visible){
+  const x=w*(star.x+1)/2,y=h*(1-star.y)/2;
+  const radius=Math.max(2,4-star.mag*.65);
+  skyContext.beginPath();skyContext.arc(x,y,radius,0,2*Math.PI);skyContext.fillStyle='#fff6cb';skyContext.fill();
+  skyContext.fillStyle='#bfe5ff';skyContext.font='12px system-ui';skyContext.fillText(star.name,Math.min(w-110,x+7),Math.max(34,y-6));
+ }
+ skyContext.strokeStyle='#fbbf24';skyContext.lineWidth=1.5;skyContext.beginPath();skyContext.moveTo(w/2-9,h/2);skyContext.lineTo(w/2+9,h/2);skyContext.moveTo(w/2,h/2-9);skyContext.lineTo(w/2,h/2+9);skyContext.stroke();
+ $('visibleStars').textContent=visible.length?'予測される恒星（'+visible.length+'個）：'+visible.map(s=>s.name+'［高度'+s.alt.toFixed(1)+'°］').join('、'):'この範囲に登録済みの明るい恒星はありません。';
+ $('skyStatus').textContent='計算時刻：'+when.toLocaleString('ja-JP',{hour12:false})+' ／ 撮影中心：方位 '+mod360(az).toFixed(1)+'°、高度 '+alt.toFixed(1)+'° ／ カタログ '+STAR_CATALOG.length+'星';
+}
+['simOffset','manualMode','manualAz','manualAlt'].forEach(id=>$(id).addEventListener('input',drawSky));
+['fovH','fovV'].forEach(id=>$(id).addEventListener('input',drawSky));
+$('simResetBtn').onclick=()=>{$('simOffset').value='0';drawSky()};
+$('liveCameraBtn').onclick=async()=>{
+ if(!navigator.mediaDevices?.getUserMedia){$('skyStatus').textContent='このブラウザではカメラ映像を利用できません。HTTPSとブラウザの対応を確認してください。';return;}
+ try{
+  if(skyStream)skyStream.getTracks().forEach(t=>t.stop());
+  skyStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+  $('skyVideo').srcObject=skyStream;await $('skyVideo').play();drawSky();
+ }catch(err){skyStream=null;$('skyStatus').textContent='カメラ映像を開始できませんでした：'+err.message;drawSky()}
+};
+$('stopCameraBtn').onclick=()=>{if(skyStream){skyStream.getTracks().forEach(t=>t.stop());skyStream=null;}$('skyVideo').srcObject=null;drawSky()};
+window.addEventListener('pagehide',()=>{if(skyStream)skyStream.getTracks().forEach(t=>t.stop())});
+window.addEventListener('resize',drawSky);
+// Draw at a modest interval to keep the view updated without overloading the phone.
+setInterval(drawSky,1000);
+drawSky();
+
+</script></body></html>
